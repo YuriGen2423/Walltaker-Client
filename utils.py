@@ -7,10 +7,15 @@ def setBackground(path: str):
 		print("Untested on Windows")
 		ctypes.windll.user32.SystemParametersInfoW(20, 0, path, 0)
 	else:
-		if os.getenv("DESKTOP_SESSION") != "cinnamon":
-			print("Not supported on this desktop environment.\nMe too lazy...")
-			raise NotImplementedError
-		os.system(f"gsettings set org.cinnamon.desktop.background picture-uri 'file://{path}'")
+		match os.getenv("DESKTOP_SESSION"):
+			case "cinnamon":
+				os.system(f"gsettings set org.cinnamon.desktop.background picture-uri 'file://{path}'")
+			case "gnome":
+				# untested
+				os.system(f"gsettings set org.gnome.desktop.background picture-uri 'file://{path}'")
+			case _:
+				print("Not supported on this desktop environment.\nMe too lazy...")
+				raise NotImplementedError
 		#os.system(f"gsettings set org.cinnamon.desktop.background picture-uri 'file://{path.removeprefix('/')}'")
 
 def getBackground():
