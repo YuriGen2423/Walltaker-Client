@@ -1,4 +1,6 @@
+TODO
 __pycache__
-test*
 config.toml
+ignore
+test*
 walltaker

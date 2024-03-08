@@ -9,18 +9,26 @@ def setBackground(path: str):
 	else:
 		match os.getenv("DESKTOP_SESSION"):
 			case "cinnamon":
+				# Mon cher cinnamon
 				os.system(f"gsettings set org.cinnamon.desktop.background picture-uri 'file://{path}'")
 			case "gnome":
-				# untested
+				print("Untested on Gnome")
 				os.system(f"gsettings set org.gnome.desktop.background picture-uri 'file://{path}'")
 			case _:
-				print("Not supported on this desktop environment.\nMe too lazy...")
+				print("Not supported on this desktop environment.")
 				raise NotImplementedError
-		#os.system(f"gsettings set org.cinnamon.desktop.background picture-uri 'file://{path.removeprefix('/')}'")
 
 def getBackground():
 	if os.name == "nt":
 		print("Not supported on Windows")
 		raise NotImplementedError
 	else:
-		return os.popen(f"gsettings get org.cinnamon.desktop.background picture-uri").read().split("'")[1]
+		match os.getenv("DESKTOP_SESSION"):
+			case "cinnamon":
+				return os.popen(f"gsettings get org.cinnamon.desktop.background picture-uri").read().split("'")[1]
+			case "gnome":
+				print("Untested on Gnome")
+				return os.popen(f"gsettings get org.gnome.desktop.background picture-uri").read().split("'")[1]
+			case _:
+				print("Not supported on this desktop environment.")
+				raise NotImplementedError

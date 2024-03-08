@@ -1,5 +1,5 @@
-import sys
 import os
+os.chdir(os.path.dirname(__file__))
 
 CONFIGFILE = "config.toml"
 if os.path.exists("requirements.txt") and not os.path.exists(CONFIGFILE):
@@ -15,13 +15,18 @@ try:
 except FileExistsError:
 	pass
 
-def disconnected(e, quit=False):
+def window_warn(e, title="Error", quit=False):
 	win = tk.Tk()
-	win.title("Error")
-	label = tk.Label(win, text="Connection error")
+	win.title(title)
+
+	label = tk.Label(win, text="Error:")
 	statusL = tk.Label(win, text=e)
+	okB = tk.Button(win, text="Ok", command=win.destroy)
+
 	label.pack()
 	statusL.pack()
+	okB.pack()
+	
 	win.mainloop()
 	if quit:
 		quit(0)
@@ -31,12 +36,17 @@ win.title("Walltaker YClient")
 
 interval	= 60
 linkID		= 0
+APIKey		= ""
 
 if os.path.exists(CONFIGFILE):
-	with open(CONFIGFILE, "r") as file:
-		save = toml.load(file)
-		interval = save["client"]["interval"]
-		linkID = save["user"]["linkID"]
+	try:
+		with open(CONFIGFILE, "r") as file:
+			save = toml.load(file)
+			interval = save["client"]["interval"]
+			linkID = save["user"]["linkID"]
+			APIKey = save["user"]["APIKey"]
+	except toml.exceptions.NonExistentKey:
+		pass
 
 def new_wallpaper():
 	global prevcall
@@ -47,7 +57,7 @@ def new_wallpaper():
 						headers={"User-Agent": "Yuri-client"},
 						timeout=10)
 	except requests.exceptions.ConnectionError as e:
-		disconnected(e)
+		window_warn(e)
 		win.after_cancel(prevcall)
 		prevcall = win.after(10_000, new_wallpaper)
 		return
@@ -57,7 +67,7 @@ def new_wallpaper():
 	try:
 		post = link["post_url"]
 	except KeyError:
-		disconnected("Invalid linkID")
+		window_warn("Invalid linkID")
 		win.after_cancel(prevcall)
 		prevcall = win.after(10_000, new_wallpaper)
 		#return
@@ -71,41 +81,109 @@ def new_wallpaper():
 			file.write(requests.get(post).content)
 
 	utils.setBackground(f"{os.path.join(os.path.dirname(__file__),f'walltaker/{filename}')}")
+	set_byL.config(text=f"Set by:\n{link['set_by']}")
 	print(utils.getBackground())
 
-def update(newInterval, newLinkID):
-	global interval, linkID
+prevcall = win.after(1_000, new_wallpaper)
+
+def update(newInterval, newLinkID, newAPIKey):
+	global interval, linkID, APIKey
 	try:
 		interval = int(newInterval)
 		linkID = int(newLinkID)
+		APIKey = newAPIKey
 		new_wallpaper()
+		configWin.destroy()
 	except ValueError:
-		warningWin = tk.Tk()
-		warningWin.title("Error")
+		window_warn("Invalid interval or linkID")
 
-		warningL	= tk.Label(warningWin, text="Invalid\nMust be integer")
-		okB 		= tk.Button(warningWin, text="Ok", command=warningWin.destroy)
+def oconfigWin():
+	global configWin
+	configWin = tk.Tk()
+	configWin.title("Configuration")
+	
+	intervalL	= tk.Label(configWin, text="Interval: ")
+	intervalI	= tk.Entry(configWin, width=5, justify="center")
 
-		warningL.pack()
-		okB.pack()
+	linkL		= tk.Label(configWin, text="LinkID: ")
+	linkIDI		= tk.Entry(configWin, width=6, justify="center")
 
-		warningWin.mainloop()
+	APIL		= tk.Label(configWin, text="API Key: ")
+	APII		= tk.Entry(configWin, width=8, justify="center")
+	
+	updateB		= tk.Button(configWin, text="Update", command=lambda: update(intervalI.get(), linkIDI.get(), APII.get()))
 
-intervalI	= tk.Entry(win, width=5, justify="center")
-linkIDI		= tk.Entry(win, width=6, justify="center")
-updateB		= tk.Button(win, text="Update", command=lambda: update(intervalI.get(), linkIDI.get()))
+
+	intervalI.insert(0, interval)
+	linkIDI.insert(0, linkID)
+	APII.insert(0, APIKey)
+	
+	intervalL.grid(row=0, column=0)
+	intervalI.grid(row=0, column=1)
+
+	linkL.grid(row=1, column=0)
+	linkIDI.grid(row=1, column=1)
+
+	APIL.grid(row=2, column=0)
+	APII.grid(row=2, column=1)
+	
+	updateB.grid(row=3, column=0)
+
+	configWin.mainloop()
+
+def react(reaction, reactionText):
+	response = requests.post(f"https://walltaker.joi.how/api/links/{linkID}/response.json", {
+		"api_key": APIKey,
+		"type": reaction,
+		"text": reactionText
+	})
+	if reaction == "disgust":
+		new_wallpaper()
+	if "message" in response.json():
+		window_warn(response.json()['message'])
+
+def reactWin():
+	reactWin = tk.Tk()
+	reactWin.title("React")
+
+	reactL	= tk.Label(reactWin, text="Reaction: ")
+	reactI	= tk.Entry(reactWin, width=10, justify="center")
+
+	def send():
+		react(reactsSelected.get(), reactI.get())
+		reactWin.destroy()
+	sendB	= tk.Button(reactWin, text="Send", command=send)
+
+	reactL.grid(row=0, column=0)
+	reactI.grid(row=0, column=1)
+	sendB.grid(row=1, column=0)
+
+	reactWin.mainloop()
+
+reacts = [
+	"came",
+	"horny",
+	"disgust"
+]
+reactsSelected	= tk.StringVar()
+reactsSelected.set(reacts[1])
+reactsD			= tk.OptionMenu(win, reactsSelected, *reacts)
+
+set_byL		= tk.Label(win, text=f"Loading...")
+
+configB		= tk.Button(win, text="Configure", command=oconfigWin)
+reactB		= tk.Button(win, text="React", command=reactWin)
 quitB		= tk.Button(win, text="Quit", command=win.destroy)
 
-intervalI.insert(0, interval)
-linkIDI.insert(0, linkID)
+reactsD.grid(row=0, column=0)
+set_byL.grid(row=0, column=1)
+reactB.grid(row=1, column=0)
+configB.grid(row=1, column=1)
+quitB.grid(row=1, column=2)
 
-intervalI.grid(row=0, column=0)
-linkIDI.grid(row=0, column=1)
-updateB.grid(row=1, column=0)
-quitB.grid(row=1, column=1)
-
-prevcall = win.after(1_000, new_wallpaper)
 win.mainloop()
+
+print("Saving")
 
 with(open(CONFIGFILE,"w")) as file:
 	save = {
@@ -113,7 +191,8 @@ with(open(CONFIGFILE,"w")) as file:
 			"interval": interval
 		},
 		"user": {
-			"linkID": linkID
+			"linkID": linkID,
+			"APIKey": APIKey
 		}
 	}
 	toml.dump(save, file)
