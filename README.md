@@ -9,7 +9,7 @@ And I need a new name for this client...
 # Todo(s)
 
 - [x] Fix APIKey not being used
-- [ ] Separate walltaker api function in a separate file
+- [x] Separate walltaker api functions in a separate file
 - [ ] Make the window minimizable
 
 Low priority Todo(s)

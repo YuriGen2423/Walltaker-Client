@@ -1,3 +1,8 @@
+import sys
+match sys.argv[1]:
+	case "--help" | '-h' | '-?':
+		print("Just run it and stop bothering for a terminal only version bro.")
+
 import os
 os.chdir(os.path.dirname(__file__))
 
@@ -9,13 +14,14 @@ import tkinter as tk
 import requests
 import utils
 import tomlkit as toml
+import walpier
 
 try:
 	os.mkdir("walltaker")
 except FileExistsError:
 	pass
 
-def window_warn(e, title="Error", quit=False):
+def window_warn(e: BaseException, title="Error", quit=False):
 	win = tk.Tk()
 	win.title(title)
 
@@ -34,35 +40,31 @@ def window_warn(e, title="Error", quit=False):
 win = tk.Tk()
 win.title("Walltaker YClient")
 
-interval	= 60
+interval	= 50
 linkID		= 0
 APIKey		= ""
+prevURL		= 0
 
 if os.path.exists(CONFIGFILE):
 	try:
 		with open(CONFIGFILE, "r") as file:
 			save = toml.load(file)
-			interval = save["client"]["interval"]
-			linkID = save["user"]["linkID"]
-			APIKey = save["user"]["APIKey"]
 	except toml.exceptions.NonExistentKey:
 		pass
 
+Client = walpier.WallClient(APIKey)
+
 def new_wallpaper():
-	global prevcall
+	global prevcall, prevURL
 	win.after_cancel(prevcall)
 	prevcall = win.after(interval*1000, new_wallpaper)
 	try:
-		link = requests.get(f"https://walltaker.joi.how/links/{linkID}.json",
-						headers={"User-Agent": "Yuri-client"},
-						timeout=10)
+		link = Client.get_wallpaper(linkID)
 	except requests.exceptions.ConnectionError as e:
 		window_warn(e)
 		win.after_cancel(prevcall)
 		prevcall = win.after(10_000, new_wallpaper)
 		return
-		
-	link = link.json()
 	
 	try:
 		post = link["post_url"]
@@ -70,7 +72,6 @@ def new_wallpaper():
 		window_warn("Invalid linkID")
 		win.after_cancel(prevcall)
 		prevcall = win.after(10_000, new_wallpaper)
-		#return
 
 	filename = post.split("/")[-1]
 
@@ -81,21 +82,27 @@ def new_wallpaper():
 			file.write(requests.get(post).content)
 
 	utils.setBackground(f"{os.path.join(os.path.dirname(__file__),f'walltaker/{filename}')}")
+	if prevURL != link["post_url"]:
+		prevURL = link["post_url"]
+		os.system(f"notify-send -u 'normal' 'Walltaker' 'New wallpaper by {link['set_by']}'")
+		
 	set_byL.config(text=f"Set by:\n{link['set_by']}")
 	print(utils.getBackground())
 
 prevcall = win.after(1_000, new_wallpaper)
 
 def update(newInterval, newLinkID, newAPIKey):
-	global interval, linkID, APIKey
+	global interval, linkID, Client
 	try:
 		interval = int(newInterval)
 		linkID = int(newLinkID)
-		APIKey = newAPIKey
+		Client = walpier.WallClient(newAPIKey)
 		new_wallpaper()
 		configWin.destroy()
 	except ValueError:
 		window_warn("Invalid interval or linkID")
+	except RuntimeError:
+		window_warn("Invalid API key")
 
 def oconfigWin():
 	global configWin
@@ -132,11 +139,7 @@ def oconfigWin():
 	configWin.mainloop()
 
 def react(reaction, reactionText):
-	response = requests.post(f"https://walltaker.joi.how/api/links/{linkID}/response.json", {
-		"api_key": APIKey,
-		"type": reaction,
-		"text": reactionText
-	})
+	response = Client.react(reaction, reactionText)
 	if reaction == "disgust":
 		new_wallpaper()
 	if "message" in response.json():
@@ -186,15 +189,6 @@ win.mainloop()
 print("Saving")
 
 with(open(CONFIGFILE,"w")) as file:
-	save = {
-		"client": {
-			"interval": interval
-		},
-		"user": {
-			"linkID": linkID,
-			"APIKey": APIKey
-		}
-	}
 	toml.dump(save, file)
 
 print("Exiting")
