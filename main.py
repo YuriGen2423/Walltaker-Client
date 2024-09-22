@@ -1,7 +1,8 @@
 import sys
-match sys.argv[1]:
-	case "--help" | '-h' | '-?':
-		print("Just run it and stop bothering for a terminal only version bro.")
+args = sys.argv[1:]
+if args.count("-h") or args.count("--help") or args.count("-?"):
+	print('Just run it normally')
+	print("I won't make it cli")
 
 import os
 os.chdir(os.path.dirname(__file__))
@@ -41,9 +42,13 @@ win = tk.Tk()
 win.title("Walltaker YClient")
 
 interval	= 50
-linkID		= 0
-APIKey		= ""
 prevURL		= 0
+save		= {
+	"user": {
+		"APIKey": "",
+		"linkID": 0
+	}
+}
 
 if os.path.exists(CONFIGFILE):
 	try:
@@ -52,14 +57,14 @@ if os.path.exists(CONFIGFILE):
 	except toml.exceptions.NonExistentKey:
 		pass
 
-Client = walpier.WallClient(APIKey)
+Client = walpier.WallClient(save["user"]["APIKey"])
 
 def new_wallpaper():
 	global prevcall, prevURL
 	win.after_cancel(prevcall)
 	prevcall = win.after(interval*1000, new_wallpaper)
 	try:
-		link = Client.get_wallpaper(linkID)
+		link = Client.get_wallpaper(save["user"]["linkID"])
 	except requests.exceptions.ConnectionError as e:
 		window_warn(e)
 		win.after_cancel(prevcall)
@@ -84,7 +89,7 @@ def new_wallpaper():
 	utils.setBackground(f"{os.path.join(os.path.dirname(__file__),f'walltaker/{filename}')}")
 	if prevURL != link["post_url"]:
 		prevURL = link["post_url"]
-		os.system(f"notify-send -u 'normal' 'Walltaker' 'New wallpaper by {link['set_by']}'")
+		utils.toast("Walltaker", f"New wallpaper by {link['set_by']}")
 		
 	set_byL.config(text=f"Set by:\n{link['set_by']}")
 	print(utils.getBackground())
@@ -92,10 +97,10 @@ def new_wallpaper():
 prevcall = win.after(1_000, new_wallpaper)
 
 def update(newInterval, newLinkID, newAPIKey):
-	global interval, linkID, Client
+	global interval, Client
 	try:
 		interval = int(newInterval)
-		linkID = int(newLinkID)
+		save['user'][''] = int(newLinkID)
 		Client = walpier.WallClient(newAPIKey)
 		new_wallpaper()
 		configWin.destroy()
@@ -122,8 +127,8 @@ def oconfigWin():
 
 
 	intervalI.insert(0, interval)
-	linkIDI.insert(0, linkID)
-	APII.insert(0, APIKey)
+	linkIDI.insert(0, save["user"]["linkID"])
+	APII.insert(0, save["user"]["APIKey"])
 	
 	intervalL.grid(row=0, column=0)
 	intervalI.grid(row=0, column=1)
