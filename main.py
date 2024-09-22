@@ -41,12 +41,14 @@ def window_warn(e: BaseException, title="Error", quit=False):
 win = tk.Tk()
 win.title("Walltaker YClient")
 
-interval	= 50
 prevURL		= 0
 save		= {
 	"user": {
 		"APIKey": "",
 		"linkID": 0
+	},
+	"client": {
+		"interval": 60
 	}
 }
 
@@ -62,10 +64,10 @@ Client = walpier.WallClient(save["user"]["APIKey"])
 def new_wallpaper():
 	global prevcall, prevURL
 	win.after_cancel(prevcall)
-	prevcall = win.after(interval*1000, new_wallpaper)
+	prevcall = win.after(int(save["client"]["interval"]*1000), new_wallpaper)
 	try:
 		link = Client.get_wallpaper(save["user"]["linkID"])
-	except requests.exceptions.ConnectionError as e:
+	except ConnectionError as e:
 		window_warn(e)
 		win.after_cancel(prevcall)
 		prevcall = win.after(10_000, new_wallpaper)
@@ -97,10 +99,13 @@ def new_wallpaper():
 prevcall = win.after(1_000, new_wallpaper)
 
 def update(newInterval, newLinkID, newAPIKey):
-	global interval, Client
+	global Client
 	try:
-		interval = int(newInterval)
-		save['user'][''] = int(newLinkID)
+		if float(newInterval) < 1:
+			window_warn("Interval is too short.")
+			return
+		save['client']['interval'] = float(newInterval)
+		save['user']['linkID'] = int(newLinkID)
 		Client = walpier.WallClient(newAPIKey)
 		new_wallpaper()
 		configWin.destroy()
@@ -109,37 +114,43 @@ def update(newInterval, newLinkID, newAPIKey):
 	except RuntimeError:
 		window_warn("Invalid API key")
 
-def oconfigWin():
+def openConfigWin():
 	global configWin
 	configWin = tk.Tk()
 	configWin.title("Configuration")
+
+	frameL = tk.Frame(configWin)
+	frameR = tk.Frame(configWin)
 	
-	intervalL	= tk.Label(configWin, text="Interval: ")
-	intervalI	= tk.Entry(configWin, width=5, justify="center")
+	intervalL	= tk.Label(frameL, text="Interval: ")
+	intervalI	= tk.Entry(frameR, width=5, justify="center")
 
-	linkL		= tk.Label(configWin, text="LinkID: ")
-	linkIDI		= tk.Entry(configWin, width=6, justify="center")
+	linkL		= tk.Label(frameL, text="LinkID: ")
+	linkIDI		= tk.Entry(frameR, width=6, justify="center")
 
-	APIL		= tk.Label(configWin, text="API Key: ")
-	APII		= tk.Entry(configWin, width=8, justify="center")
+	APIL		= tk.Label(frameL, text="API Key: ")
+	APII		= tk.Entry(frameR, width=8, justify="center")
 	
-	updateB		= tk.Button(configWin, text="Update", command=lambda: update(intervalI.get(), linkIDI.get(), APII.get()))
+	updateB		= tk.Button(frameL, text="Update", command=lambda: update(intervalI.get(), linkIDI.get(), APII.get()))
 
 
-	intervalI.insert(0, interval)
+	intervalI.insert(0, save['client']['interval'])
 	linkIDI.insert(0, save["user"]["linkID"])
 	APII.insert(0, save["user"]["APIKey"])
 	
-	intervalL.grid(row=0, column=0)
-	intervalI.grid(row=0, column=1)
+	# frameL
+	intervalL.pack(side='top')
+	linkL.pack(side='top')
+	APIL.pack(side='top')
+	updateB.pack(side='top')
+	frameL.pack(side="left")
 
-	linkL.grid(row=1, column=0)
-	linkIDI.grid(row=1, column=1)
+	# frameR
+	intervalI.pack(side='top')
+	linkIDI.pack(side='top')
+	APII.pack(side='top')
+	frameR.pack(side="right")
 
-	APIL.grid(row=2, column=0)
-	APII.grid(row=2, column=1)
-	
-	updateB.grid(row=3, column=0)
 
 	configWin.mainloop()
 
@@ -154,19 +165,29 @@ def reactWin():
 	reactWin = tk.Tk()
 	reactWin.title("React")
 
-	reactL	= tk.Label(reactWin, text="Reaction: ")
-	reactI	= tk.Entry(reactWin, width=10, justify="center")
+	ft = tk.Frame(reactWin)
+	fb = tk.Frame(reactWin)
 
+	# ft
+	reactL	= tk.Label(ft, text="Message: ")
+	reactI	= tk.Entry(ft, width=10, justify="center")
+	reactL.pack(side='left')
+	reactI.pack(side='right')
+	ft.pack(side='top')
+
+	# fb
 	def send():
 		react(reactsSelected.get(), reactI.get())
 		reactWin.destroy()
-	sendB	= tk.Button(reactWin, text="Send", command=send)
+	sendB	= tk.Button(fb, text="Send", command=send)
+	sendB.pack()
+	fb.pack(side="bottom")
 
-	reactL.grid(row=0, column=0)
-	reactI.grid(row=0, column=1)
-	sendB.grid(row=1, column=0)
 
 	reactWin.mainloop()
+
+fl = tk.Frame(win)
+fr = tk.Frame(win)
 
 reacts = [
 	"came",
@@ -175,19 +196,24 @@ reacts = [
 ]
 reactsSelected	= tk.StringVar()
 reactsSelected.set(reacts[1])
-reactsD			= tk.OptionMenu(win, reactsSelected, *reacts)
 
-set_byL		= tk.Label(win, text=f"Loading...")
+# fl
+reactsMenu	= tk.OptionMenu(fl, reactsSelected, *reacts)
+reactB		= tk.Button(fl, text="React", command=reactWin)
 
-configB		= tk.Button(win, text="Configure", command=oconfigWin)
-reactB		= tk.Button(win, text="React", command=reactWin)
-quitB		= tk.Button(win, text="Quit", command=win.destroy)
+reactsMenu.pack()
+reactB.pack()
+fl.pack(side='left')
 
-reactsD.grid(row=0, column=0)
-set_byL.grid(row=0, column=1)
-reactB.grid(row=1, column=0)
-configB.grid(row=1, column=1)
-quitB.grid(row=1, column=2)
+# fr
+set_byL		= tk.Label(fr, text=f"Loading...")
+configB		= tk.Button(fr, text="Configure", command=openConfigWin)
+quitB		= tk.Button(fr, text="Quit", command=win.destroy)
+
+set_byL.pack()
+configB.pack()
+quitB.pack()
+fr.pack(side='right')
 
 win.mainloop()
 
